@@ -1,0 +1,6 @@
+<snapp-config>
+  <name>SQL-SNAPP</name>
+  <db type="mysql" username="db-root" password="secret"></db>
+  <control port="9967" enable_password="moresecrets"></control>
+</snapp-config>
+

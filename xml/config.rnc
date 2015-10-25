@@ -1,0 +1,29 @@
+datatypes xsd = "http://www.w3.org/2001/XMLSchema-datatypes"
+
+grammar {
+
+start = element snapp-config {snapp-config-content}
+
+snapp-config-content =
+  element name {text},
+  element db  {db-content},
+  element control {control-element}
+  
+db-content =
+  #can be mysql db or an sqllite db
+  (attribute type {"mysql"},
+  attribute username {text},
+  attribute password {text},
+  attribute host {text}?,
+  attribute port {xsd:integer}?,
+  attribute name {text}?) |
+  (attribute type {"sqlite"} ,
+   attribute name {text})
+
+
+ control-element = 
+ #the control port connection and enable information
+  attribute port {xsd:integer},
+  attribute enable_password {text}
+  
+}

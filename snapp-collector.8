@@ -1,0 +1,33 @@
+.TH SNAPP-COLLECTOR 8
+.SH NAME
+snapp-collector	\- The snapp SNMP collector backend
+.br
+.SH SYNOPSYS
+.B snapp-collector
+ [--config=config.xml] | [-c config.xml] [-v][--verbose][--foreground][-u user]
+.br
+.SH DESCRIPTION
+.PP
+.B snapp-collector
+Snapp-collector is the backend for the SNAPP SNMP data analysis and 
+presentation package. 
+
+.SH OPTIONS
+.TP
+\fB--foreground\fR
+Run in foreground.
+.TP
+\fB--verbose | -v \fR
+Do verbose Logging
+.TP
+\fB-u username\fR
+Run as username 
+
+.SH NOTES
+Snapp-collector requires libxml, net-snmp (v5.3 and above) and rrdtool.
+
+.SH AUTHOR
+.B snapp-collector 
+was written by the GRNOC at Indiana University.
+Documentation was last modified on July 1 2010.
+

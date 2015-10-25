@@ -1,0 +1,516 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?oxygen RNGSchema="http://www.oasis-open.org/docbook/xml/5.0/rng/docbook.rng" type="xml"?>
+<article version="5.0" xmlns="http://docbook.org/ns/docbook"
+  xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:ns5="http://www.w3.org/1998/Math/MathML"
+  xmlns:ns4="http://www.w3.org/1999/xhtml" xmlns:ns3="http://www.w3.org/2000/svg"
+  xmlns:ns="http://docbook.org/ns/docbook">
+  <info>
+    <title>SNAPP Collector (v 3.0) User Manual</title>
+    <author>
+      <orgname>IU GRNOC Systems Enginering</orgname>
+      <address>
+                <street>2711 E 10th Street</street>
+                <city>Bloomington, IN</city>
+                <postcode>47408</postcode>
+                <country>USA</country>
+            </address>
+      <email>syseng@grnoc.iu.edu</email>
+    </author>
+  </info>
+  <sect1>
+    <title>Introduction</title>
+    <subtitle>SNAPP basics</subtitle>
+    <para>SNAPP (SNMP Network Analysis and Presentation Package) is a set of tools designed for
+      scalable high performance SNMP(Simple Network Managent Protocol) data collection and display.
+      SNAPP was initially built for the TransPAC network to collect link statistics (2002). SNAPP is
+      made of two components: a backend (SNAPP collector) and a frontend (SNAPP FE), This document
+      only referes to the SNAPP backend and thus from this moment on ALL references to SNAPP
+      actually refer to the SNAPP collector.</para>
+    <para>SNAPP is a multithreaded deamon process written in a combination of c and c++. SNAPP
+      addresses scalability (on the number of collections) by using a database to store the SNMP
+      configuration parameters as well as the relationship between collected data (The location of
+      the database as well as authentication paramerters are stored in the SNAPP 'base' XML
+      configuration file). SNAPP uses RRDTool's excellent data locality properties to address
+      scalability isses on the IO side.</para>
+    <para>SNAPP assumes that both SNMP is expensive for end hosts and that io operations are not
+      cheap at the server side. Thus SNAPP does not collect any information from devices it has not
+      been configured to do so. SNAPP tries to be isolated from any other dependency at runtime,
+      therfore is does not require neihter the XML file not SQL database to be available execpt at
+      initialization and during configuration reloads. This allows SNAPP to be resilient to failures
+      in the SQL database.</para>
+    <para>SNAPP is also designed for very fast changes in configuration files.</para>
+    <para>Put something here about data storage</para>
+    <sect2>
+      <title>SNMP</title>
+      <subtitle>A miniature introduction to SNMP</subtitle>
+      <para> The Simple Network Managent Protocol is a set of protocols designed to facilitate
+        network device monitorting. "SNMP exposes management data in the form of variables on the
+        managed systems, which describe the system configuration. These variables can then be
+        queried (and sometimes set) by managing applications". There have been several variants of
+        SNMP, with version v2c <citation><xref linkend="rfc1901"/></citation> considered the
+        'de-facto' SNMP standard. </para>
+      <para> SNMP does not define what variables are/should be available on devices, but rather uses
+        MIBs (Management Information Bases) that define the variables. The MIBs define a
+        hierarchical space that defines object identifiers OID. Each OID is a variable that can
+        possibly be queried by an SNMP agent. There are a multitude of MIB defined by a mutitude of
+        entities, however most vendors implement a subset of the IF-MIB<citation><xref
+            linkend="rfc2863"/></citation> and the IP-MIB. </para>
+      <para>Example OID are: OID's<table frame="none">
+          <title>OID examples</title>
+          <tgroup cols="2">
+            <colspec colname="c1" colnum="1"/>
+            <colspec colname="c2" colnum="2"/>
+            <thead>
+              <row>
+                <entry>OID</entry>
+                <entry>Value</entry>
+              </row>
+            </thead>
+            <tbody>
+              <row>
+                <entry>.1.3.6.1.4.1.9.9.109.1.1.1.1.3</entry>
+                <entry>Cisco 1 minute CPU load</entry>
+              </row>
+              <row>
+                <entry>IF-MIB::ifOutErrors</entry>
+                <entry>Interface number of input error packets</entry>
+              </row>
+              <row>
+                <entry>IF-MIB::ifOutErrors.1</entry>
+                <entry>Number of input error packets for interface at index 1</entry>
+              </row>
+            </tbody>
+          </tgroup>
+        </table></para>
+    </sect2>
+    <sect2>
+      <title>SNAPP Terminology</title>
+      <subtitle>Collections, Collection classes and OID suffix Mappings</subtitle>
+      <para>SNAPP provides very flexible capabilities for data SNMP data collection. To do so SNAPP
+        has four important definitions: A Collection, a Collection class, a OID collection and and
+        OID suffix mapping. A OID collection defines a OID prefix do be collected. An OID class
+        groups multiple OID collections. OID suffix mappings are rules for mapping arbitrary values
+        to OID suffixes, for example a common mapping is the mapping of an interface name to the
+        interface OID index. A Collection belongs to an OID class and has both an optional
+        pre-mapping prefix value and an optional OID suffix mapping. For the case of interfaces, the
+        a collection usually has its name as the oid-premapping prefix, the interface name to
+        interface index OID suffix mapping and a collection class that includes the status of the
+        interface, the inpackets, the inoctets, the inerrors, the outerrors, the outpackets and
+        outoctets </para>
+      <para> At runtime, SNAPP solves the OID prefix mapping values by iterating over the device
+        tables once per configuration load. Once the prefix index has been solved (if necessary),
+        the complete OID is known for a each collection and then SNAPP proceds to do a single SNMP
+        get query per each collection per interval. </para>
+    </sect2>
+    <sect2>
+      <title>Performance Envelope</title>
+      <subtitle>Systems on where SNAPP is running.</subtitle>
+      <para>SNAPP provides very flexible capabilities for data SNMP data collection. However there
+        are several tems that are used by SNAPP that require explanation.</para>
+      <para>SNAPP has been used to collect 69000 interfaces every minute on a single 2U box, for
+        each interface 6 oid values are collected per iteration. The box has 32 GB of RAM and 12
+        7200 RPM hard drives in raid 10.</para>
+    </sect2>
+    <sect2>
+      <title>Known Issues</title>
+      <para>Since SNAPP uses rrdtool for it's data arhiving SNAPP suffers from the RRDTool
+        limitations. In particular RRDTool fileas are architecture AND compiler dependat. That is
+        you cannot directly copy a 32 bit rrdtool file and expect it to work on a 64 bit
+        environgment. Another issue is that RRDtool files cannot add more data types
+        efficently.</para>
+    </sect2>
+  </sect1>
+  <sect1>
+    <title>Building and Installing</title>
+    <subtitle>Building the SNAPP Deamon</subtitle>
+    <para>SNAPP runs as a deamon process in Linux systems. It has been compiled in i386, x86_64 and
+      ARM architectures. SNAPP would probably run on other POSIX environments but it has not been
+      tested in those conditions. SNAPP relies heavily on the c++ STL library and other libraries to
+      provide functionality.</para>
+    <sect2>
+      <title>Prerequisites</title>
+      <para>The following are the requirements for running SNAPP</para>
+      <itemizedlist>
+        <listitem>
+          <para>pcre >=6.6</para>
+        </listitem>
+        <listitem>
+          <para>rrdtool >=1.3</para>
+        </listitem>
+        <listitem>
+          <para>net-snmp >= 5.3 (5.5+ recomended)</para>
+        </listitem>
+        <listitem>
+          <para>libdbi >=0.8 and libdb-dbd-mysql drivers.</para>
+        </listitem>
+        <listitem>
+          <para>libxml(2) 2.6+</para>
+        </listitem>
+        <listitem>
+          <para>standard c library</para>
+        </listitem>
+        <listitem>
+          <para>standard c++ library</para>
+        </listitem>
+        <listitem>
+          <para>posix thread library</para>
+        </listitem>
+      </itemizedlist>
+      <para>Besided the running requriments, the following are the requirements for compiling
+        SNAPP</para>
+      <itemizedlist>
+        <listitem>
+          <para>compatble c++ and c compilers</para>
+        </listitem>
+      </itemizedlist>
+    </sect2>
+    <sect2>
+      <title>Building</title>
+      <para>SNAPP uses autotools to build itself. Standard : 'configure' , 'make' should be
+        sufficient to build the application.</para>
+      <para>To build an rpm you first need to build a distribution tarball. To build the tarball:
+        'configure &amp;&amp; make dist '. Once you have the tarball use rpmbuild to create the rpm
+        'rpmbuild -ta $TARBALL'.</para>
+    </sect2>
+    <sect2>
+      <title>installing</title>
+      <para>If using packager managers, the pagage managers should have installed everyting but the
+        snapp database. Please go to the section installing the database in this subsection for
+        instructions.</para>
+      <para>If installing from source, Installing SNAPP is a four step process: <orderedlist>
+          <listitem>
+            <para>Install the binary</para>
+          </listitem>
+          <listitem>
+            <para>Install database</para>
+          </listitem>
+          <listitem>
+            <para>Install the XML configuration file</para>
+          </listitem>
+          <listitem>
+            <para>(optional) Install startup scripts</para>
+          </listitem>
+        </orderedlist></para>
+      <sect3>
+        <title>Installing the binary</title>
+        <para>Run 'make install' (No needed if using from rpm insall'</para>
+      </sect3>
+      <sect3>
+        <title>Installing the database</title>
+        <para>Go to the snapp documentation directory on the distribution (on RHEL5 is
+          /ur/share/doc/snapp-$version). Create the snapp database. Run 'mysql -u root -p &lt;
+          sql/snapp.mysql.sql'.</para>
+        <para>This will create a basic config file with no collections defined. </para>
+      </sect3>
+      <sect3>
+        <title>Installing the XML configuration file</title>
+        <para> Go to the snapp documentation directory on the distribution. Put the
+          xml/example_config.xml is the base location where snapp will put its rrd file
+          database.</para>
+      </sect3>
+      <sect3>
+        <title>Installing the startup scripts</title>
+        <para>NOT distributed yet.</para>
+      </sect3>
+    </sect2>
+  </sect1>
+  <sect1>
+    <title>Configuring</title>
+    <subtitle>SNAPP Configuration</subtitle>
+    <para>SNAPP requires to configuration pieces to properly execute. The first is an XML file wich
+      determines the syslog name for the collector; the database location and authentication
+      information; and the control port parameters. </para>
+    <sect2>
+      <title>XML Config</title>
+      <subtitle>Base Configuration</subtitle>
+      <para>The snapp XML configuration is a simple file with three sections: name, db and control.
+        The name section specifies the name that the deamon will use to log syslog messages. This
+        value is only read on the first loading of the configuration, subsequen loads of the
+        configuration will ignore the value. The db section specifies the database connectivity
+        information. Currently only MySQL databases are supported by SQLite3 support is expected on
+        next releases.</para>
+      <example>
+        <title>Example XML configuration</title>
+        <para>&lt;snapp-config></para>
+        <para>&lt;name>SQL-SNAPP&lt;/name></para>
+        <para>&lt;db type="mysql" username="db-root" password="secret">&lt;/db></para>
+        <para>&lt;control port="9967" enable_password="moresecrets">&lt;/control></para>
+        <para>&lt;\snapp-config></para>
+      </example>
+    </sect2>
+    <sect2>
+      <title>SQL Configuration</title>
+      <subtitle>Collections, Collection Classes and OID's</subtitle>
+      <para>The SQL configuration database is the place where all definitions actually exist. The
+        database includes the definitions of collections, collection classes, </para>
+      <figure>
+        <title>SNAPP SQL-Diagram</title>
+        <mediaobject>
+          <imageobject><imagedata fileref="images/snapp-sql.png" scalefit="1" width="100%"
+            /></imageobject>
+        </mediaobject>
+      </figure>
+      <sect3>
+        <title>SQL Table Defitions</title>
+        <para>Something Here</para>
+        <table frame="topbot">
+          <title>Table Definitions</title>
+          <tgroup cols="3">
+            <colspec colname="c1" colnum="1" colwidth="1.0*"/>
+            <colspec colname="c2" colnum="2" colwidth="1.44*"/>
+            <colspec colname="c3" colnum="3" colwidth="1.44*"/>
+            <thead>
+              <row>
+                <entry>Name</entry>
+                <entry>Description</entry>
+                <entry>Used by Collector</entry>
+              </row>
+            </thead>
+            <tbody>
+              <row>
+                <entry>Global</entry>
+                <entry>Global configuration Settings</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>Host</entry>
+                <entry>SNMP target information</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>collection_class</entry>
+                <entry>A name for a set of rra, oid and interval settings</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>oid_collection</entry>
+                <entry>Oid suffixes and descriptions (to be collected)</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>oid_collection_class_map</entry>
+                <entry>Maps and sets order of queritng the oids for a collection class.</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>rra</entry>
+                <entry>Description of rra for data storage</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>oid_suffix_mapping</entry>
+                <entry>Name to describe a sequence of oid_suffix_mappings</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>oid_suffix_mapping_value</entry>
+                <entry>The values of the oid_suffix_mapping oids</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>collection</entry>
+                <entry>What would be collected</entry>
+                <entry>Yes</entry>
+              </row>
+              <row>
+                <entry>category</entry>
+                <entry>A logical name to describe a set of collections</entry>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>category_collection_membership</entry>
+                <entry/>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>category_hierarchy</entry>
+                <entry>The hierarchies of categories. The hierarchy graph MUST be acyclical.</entry>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>user</entry>
+                <entry>User for the acl roles</entry>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>user_role_membership</entry>
+                <entry>Maps users to roles</entry>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>acl_role</entry>
+                <entry>List of acl roles</entry>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>category_acl</entry>
+                <entry>ACL entries for catefories, maps categories to roles.</entry>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>collection_acl</entry>
+                <entry>ACL entries for colelctions, maps collections to roles.</entry>
+                <entry>No</entry>
+              </row>
+              <row>
+                <entry>log</entry>
+                <entry>A potential place to put frontend logs.</entry>
+                <entry>No</entry>
+              </row>
+            </tbody>
+          </tgroup>
+        </table>
+      </sect3>
+    </sect2>
+  </sect1>
+  <sect1>
+    <title>Running</title>
+    <subtitle>Section2 Subtitle</subtitle>
+    <para>SNAPP collector has one requires parameter the config file and several optional
+      parameters. The xml configuration file is given by: '-c $CONFIG_FILE' or by
+      '--config=$CONFIG_FILE'. The optional parameters are '--frontend', '--verbose' , '--debug' and
+      '--help'.</para>
+    <para>A typical snapp running line for a deamon is '/usr/sbin/snapp-collector -c
+      /array/SNMP/snapp/snapp_config.xml'. </para>
+  </sect1>
+  <sect1>
+    <title>SNAPP Control</title>
+    <subtitle>Signals and the control Protocol</subtitle>
+    <para>There are two mechanisms to communicate to the snapp-collector. The first is to use
+      signals to the process. The second is to use the snapp-control protocol.</para>
+    <para>Snapp understands four signals: (TERM) terminates the snapp process, (HUP) causes a signal
+      reload, (USR1) increrases the verbose level, and (USR2) sets the verbose level to
+      'normal'.</para>
+    <para>The snapp-collector can also be interfaced by using the control protocol. The control
+      protocol is an FTP inspired protocol that is accessible by using any telnet client. The
+      lisntening port is </para>
+    <table frame="none">
+      <title>Control Protocol commands</title>
+      <tgroup cols="4">
+        <colspec colname="c1" colnum="1" colwidth="1.07*"/>
+        <colspec colname="c2" colnum="2" colwidth="1.0*"/>
+        <colspec colname="c3" colnum="3" colwidth="1.0*"/>
+        <colspec colname="newCol4" colnum="4"/>
+        <thead>
+          <row>
+            <entry>command</entry>
+            <entry>Description</entry>
+            <entry>Example</entry>
+            <entry>Login required</entry>
+          </row>
+        </thead>
+        <tbody>
+          <row>
+            <entry>user</entry>
+            <entry>The username of the user that wants to identify itself</entry>
+            <entry>'user base'</entry>
+            <entry>No</entry>
+          </row>
+          <row>
+            <entry>pass</entry>
+            <entry>The password of a user. Must be issued after a user command.</entry>
+            <entry>'pass example'</entry>
+            <entry>No</entry>
+          </row>
+          <row>
+            <entry>status</entry>
+            <entry>The current status of the running config</entry>
+            <entry>'status'</entry>
+            <entry>No</entry>
+          </row>
+          <row>
+            <entry>quit</entry>
+            <entry>quit the control session</entry>
+            <entry>'quit'</entry>
+            <entry>No</entry>
+          </row>
+          <row>
+            <entry>logregexp</entry>
+            <entry>Set a regular expression to be logged in debug mode. All messages including debug
+              messages that match this experssion will be logged. To disable set an emtry
+              regexp</entry>
+            <entry>
+              <para>'logregexp 10.1.10.3'</para>
+              <para>'logregexp '</para>
+            </entry>
+            <entry>Yes</entry>
+          </row>
+          <row>
+            <entry>reload</entry>
+            <entry/>
+            <entry/>
+            <entry>Yes</entry>
+          </row>
+        </tbody>
+      </tgroup>
+    </table>
+  </sect1>
+  <sect1>
+    <title>Troubleshooting</title>
+    <para/>
+    <variablelist>
+      <varlistentry>
+        <term>SNAPP is producing lots of logs</term>
+        <listitem>
+          <para>Most likely its is running with verbose logging. Send SIGUSR2 to the process to
+            resolve (kill -s SIGUSR2 $PID). If this does not help connect to the control port and
+            disable regexp logging: Log to the control port, authenticate and set command 'logregexp
+            '. The space is very important </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Interface X is not being updated</term>
+        <listitem>
+          <para>Make sure the collection class interval matches the step size of the rrd File. Check
+            the log for the particular interface to see how often is being updated (use the logrexp
+            function on the control interface to isolate logs to that file).  </para>
+        </listitem>
+      </varlistentry>
+      <varlistentry>
+        <term>Interface X has holes in the graph</term>
+        <listitem>
+          <para>Check the order val of the oid_collection_class_map table. Make sure the errors and
+            discards have higher value than the rest of the oids (lower priority, just like the nice
+            command).</para>
+        </listitem>
+      </varlistentry>
+    </variablelist>
+  </sect1>
+  <bibliography>
+    <title>Bibliography</title>
+    <bibliodiv>
+      <title>Miscelaneous</title>
+      <biblioentry xreflabel="RFC1902" xml:id="rfc1901">
+        <authorgroup>
+          <author>
+            <personname><firstname>J.</firstname><surname>Chase</surname></personname>
+          </author>
+          <author>
+            <personname><firstname>L.</firstname><surname>McCloghrie</surname></personname>
+          </author>
+          <author>
+            <personname><firstname>M.</firstname><surname>Rose</surname></personname>
+          </author>
+          <author>
+            <personname><firstname>S.</firstname><surname>Waldbusser</surname></personname>
+          </author>
+        </authorgroup>
+        <title>RFC 1901</title>
+        <subtitle>Introduction to Community-based SNMPv2</subtitle>
+      </biblioentry>
+      <biblioentry xreflabel="RFC2863" xml:id="rfc2863"><authorgroup>
+          <author>
+            <personname><firstname>K.</firstname><surname>McCloghrie</surname></personname>
+          </author>
+          <author>
+            <personname><firstname>F.</firstname><surname>Kastenholz</surname></personname>
+          </author>
+        </authorgroup><title>RFC 2863</title><subtitle>The Interfaces Group MIB</subtitle>
+        <copyright>
+          <year>2000</year>
+          <holder>The Internet Society</holder>
+        </copyright>
+      </biblioentry>
+    </bibliodiv>
+  </bibliography>
+</article>

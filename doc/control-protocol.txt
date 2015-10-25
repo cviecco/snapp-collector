@@ -1,0 +1,15 @@
+Snapp control protocol
+
+Snapp binds itself to a 'control' port that allows the user to enter simple
+commands in a text based protocol.
+
+The following commands are accepted:
+
+user
+pass
+status
+logregexp
+reload
+quit
+
+
